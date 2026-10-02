@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique @db.VarChar(120)
+  nombre    String   @db.NVarChar(120)
+  claveHash String   @map("clave_hash") @db.VarChar(100)
+  rol       String   @db.VarChar(12) // SUPERADMIN | ADMIN | BASE
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @map("creado_en")
+
+  sedes                UsuarioSede[]
+  movimientosCreados   Movimiento[] @relation("MovCreadoPor")
+  movimientosResueltos Movimiento[] @relation("MovResueltoPor")
+  productosCreados     Producto[]
+  lotesCreados         Lote[]
+  auditorias           Auditoria[]
+  syncs                SyncLog[]
+
+  @@map("usuario")
+}
+
+model UsuarioSede {
+  usuarioId Int @map("usuario_id")
+  sedeId    Int @map("sede_id")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sede    Sede    @relation(fields: [sedeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([usuarioId, sedeId])
+  @@map("usuario_sede")
+}
+
+model Sede {
+  id            Int     @id @default(autoincrement())
+  codigo        String  @unique @db.VarChar(10)
+  nombre        String  @db.NVarChar(80)
+  controlaSaldo Boolean @default(true) @map("controla_saldo")
+  activo        Boolean @default(true)
+
+  usuarios   UsuarioSede[]
+  saldos     Saldo[]
+  kardex     Kardex[]
+  movOrigen  Movimiento[] @relation("MovOrigen")
+  movDestino Movimiento[] @relation("MovDestino")
+
+  @@map("sede")
+}
+
+model Producto {
+  id             Int       @id @default(autoincrement())
+  codigo         String    @unique @db.NVarChar(40)
+  descripcion    String    @db.NVarChar(250)
+  referencia     String?   @db.NVarChar(100)
+  marca          String?   @db.NVarChar(100)
+  origen         String    @db.VarChar(6) // ERP | MANUAL
+  creadoPorId    Int?      @map("creado_por")
+  creadoEn       DateTime  @map("creado_en")
+  sincronizadoEn DateTime? @map("sincronizado_en")
+
+  creadoPor Usuario? @relation(fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lotes     Lote[]
+
+  @@index([referencia])
+  @@index([descripcion])
+  @@map("producto")
+}
+
+model Lote {
+  id               Int       @id @default(autoincrement())
+  productoId       Int       @map("producto_id")
+  nroLote          String    @map("nro_lote") @db.NVarChar(60)
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  origen           String    @db.VarChar(6) // ERP | MANUAL
+  creadoPorId      Int?      @map("creado_por")
+  creadoEn         DateTime  @map("creado_en")
+  sincronizadoEn   DateTime? @map("sincronizado_en")
+
+  producto  Producto @relation(fields: [productoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  creadoPor Usuario? @relation(fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  saldos    Saldo[]
+  lineas    MovimientoLinea[]
+  kardex    Kardex[]
+
+  @@unique([productoId, nroLote])
+  @@index([fechaVencimiento])
+  @@map("lote")
+}
+
+model Movimiento {
+  id               Int       @id @default(autoincrement())
+  consecutivo      String    @unique @db.VarChar(12)
+  tipo             String    @db.VarChar(10) // TRASLADO | SALIDA | AJUSTE | ANULACION
+  motivo           String?   @db.VarChar(15)
+  sedeOrigenId     Int?      @map("sede_origen_id")
+  sedeDestinoId    Int?      @map("sede_destino_id")
+  estado           String    @db.VarChar(13)
+  documentoSoporte String?   @map("documento_soporte") @db.NVarChar(60)
+  observacion      String?   @db.NVarChar(500)
+  anulaAId         Int?      @map("anula_a_id")
+  creadoPorId      Int       @map("creado_por")
+  creadoEn         DateTime  @map("creado_en")
+  resueltoPorId    Int?      @map("resuelto_por")
+  resueltoEn       DateTime? @map("resuelto_en")
+  motivoResolucion String?   @map("motivo_resolucion") @db.NVarChar(500)
+
+  sedeOrigen  Sede?        @relation("MovOrigen", fields: [sedeOrigenId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sedeDestino Sede?        @relation("MovDestino", fields: [sedeDestinoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  creadoPor   Usuario      @relation("MovCreadoPor", fields: [creadoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resueltoPor Usuario?     @relation("MovResueltoPor", fields: [resueltoPorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  anulaA      Movimiento?  @relation("Anulacion", fields: [anulaAId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  anulaciones Movimiento[] @relation("Anulacion")
+  lineas      MovimientoLinea[]
+  kardex      Kardex[]
+
+  @@index([tipo, estado])
+  @@index([sedeOrigenId])
+  @@index([sedeDestinoId])
+  @@index([creadoEn])
+  @@map("movimiento")
+}
+
+model MovimientoLinea {
+  id           Int  @id @default(autoincrement())
+  movimientoId Int  @map("movimiento_id")
+  loteId       Int  @map("lote_id")
+  cantidad     Int
+  saldoSistema Int? @map("saldo_sistema")
+  conteo       Int?
+
+  movimiento Movimiento @relation(fields: [movimientoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lote       Lote       @relation(fields: [loteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([movimientoId, loteId])
+  @@index([loteId])
+  @@map("movimiento_linea")
+}
+
+model Saldo {
+  sedeId        Int      @map("sede_id")
+  loteId        Int      @map("lote_id")
+  cantidad      Int
+  actualizadoEn DateTime @map("actualizado_en")
+
+  sede Sede @relation(fields: [sedeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lote Lote @relation(fields: [loteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([sedeId, loteId])
+  @@index([loteId])
+  @@map("saldo")
+}
+
+model Kardex {
+  id              Int      @id @default(autoincrement())
+  fecha           DateTime
+  sedeId          Int      @map("sede_id")
+  loteId          Int      @map("lote_id")
+  movimientoId    Int      @map("movimiento_id")
+  cantidad        Int
+  saldoResultante Int      @map("saldo_resultante")
+
+  sede       Sede       @relation(fields: [sedeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lote       Lote       @relation(fields: [loteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  movimiento Movimiento @relation(fields: [movimientoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([sedeId, loteId, id])
+  @@index([loteId])
+  @@index([movimientoId])
+  @@map("kardex")
+}
+
+model Auditoria {
+  id         Int      @id @default(autoincrement())
+  fechaHora  DateTime @map("fecha_hora")
+  usuarioId  Int?     @map("usuario_id")
+  tabla      String   @db.VarChar(30)
+  registroId String   @map("registro_id") @db.VarChar(40)
+  accion     String   @db.VarChar(13) // CREAR | MODIFICAR | BORRAR | LOGIN | LOGIN_FALLIDO
+  antes      String?  @db.NVarChar(Max)
+  despues    String?  @db.NVarChar(Max)
+  motivo     String?  @db.NVarChar(500)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([fechaHora])
+  @@index([tabla, registroId])
+  @@map("auditoria")
+}
+
+model SyncLog {
+  id                    Int       @id @default(autoincrement())
+  inicio                DateTime
+  fin                   DateTime?
+  productosNuevos       Int       @default(0) @map("productos_nuevos")
+  productosActualizados Int       @default(0) @map("productos_actualizados")
+  lotesNuevos           Int       @default(0) @map("lotes_nuevos")
+  lotesActualizados     Int       @default(0) @map("lotes_actualizados")
+  error                 String?   @db.NVarChar(Max)
+  usuarioId             Int?      @map("usuario_id")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("sync_log")
+}
+
+model Consecutivo {
+  prefijo String @id @db.VarChar(2) // TR | SA | AJ | AN
+  ultimo  Int    @default(0)
+
+  @@map("consecutivo")
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="fondoRP" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14b8a6" />
+      <stop offset="1" stop-color="#0f766e" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#fondoRP)" />
+  <path
+    d="M20.5 23.5C20.5 16.6 25.8 11.5 32 11.5C38.2 11.5 43.5 16.6 43.5 23.5C43.5 28.3 41.8 30.4 41.5 34.5L41.3 39.2C41.1 45 38.9 51.5 35.6 51.5C32.9 51.5 32.9 44.8 32 42.8C31.1 44.8 31.1 51.5 28.4 51.5C25.1 51.5 22.9 45 22.7 39.2L22.5 34.5C22.2 30.4 20.5 28.3 20.5 23.5Z"
+    fill="white"
+  />
+</svg>
